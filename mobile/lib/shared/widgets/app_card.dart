@@ -26,31 +26,55 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget content = Container(
-      margin: margin,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: gradient == null ? (color ?? AppColors.surface) : null,
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: borderColor != null
-            ? Border.all(color: borderColor!, width: 1)
-            : Border.all(color: AppColors.border, width: 1),
-      ),
-      child: child,
+    final border = BorderSide(
+      color: borderColor ?? AppColors.border,
+      width: 1,
     );
 
-    if (onTap != null) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
+    if (gradient != null) {
+      return Container(
+        margin: margin,
+        decoration: BoxDecoration(
+          gradient: gradient,
           borderRadius: BorderRadius.circular(borderRadius),
-          child: content,
+          border: Border.all(
+            color: borderColor ?? AppColors.border,
+            width: 1,
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(borderRadius),
+            child: Padding(
+              padding: padding ?? const EdgeInsets.all(16),
+              child: child,
+            ),
+          ),
         ),
       );
     }
 
-    return content;
+    return Container(
+      margin: margin,
+      child: Material(
+        color: color ?? AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(borderRadius),
+          side: border,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: Padding(
+            padding: padding ?? const EdgeInsets.all(16),
+            child: child,
+          ),
+        ),
+      ),
+    );
   }
 }

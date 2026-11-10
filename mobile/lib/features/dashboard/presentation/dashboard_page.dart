@@ -1,141 +1,111 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_stat_card.dart';
+import '../../../shared/widgets/empty_state_widget.dart';
+import '../../../shared/widgets/status_badge.dart';
+import 'bloc/dashboard_bloc.dart';
+import 'bloc/dashboard_event.dart';
+import 'bloc/dashboard_state.dart';
 
-class DashboardPage extends StatefulWidget {
+class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
   @override
-  State<DashboardPage> createState() => _DashboardPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => DashboardBloc()..add(const LoadDashboardData()),
+      child: const _DashboardView(),
+    );
+  }
 }
 
-class _DashboardPageState extends State<DashboardPage> {
-  int _selectedIndex = 0;
-
-  Future<void> _pickDocument() async {
-    try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'docx', 'txt'],
-      );
-
-      if (!mounted || result == null) return;
-
-      final file = result.single;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${file.name} selected successfully'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to select document: $e')));
-    }
-  }
-
-  void _onNavigationTap(int index) {
-    if (index == 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('AI Chat is coming in the next milestone.'),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _selectedIndex = index);
-  }
+class _DashboardView extends StatelessWidget {
+  const _DashboardView();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: _selectedIndex == 0
-            ? _buildDashboard()
-            : _buildSimpleTab(_selectedIndex == 1 ? 'My Documents' : 'Profile'),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onNavigationTap,
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Home',
+        child: RefreshIndicator(
+          onRefresh: () async {
+            context.read<DashboardBloc>().add(const RefreshDashboardData());
+          },
+          color: AppColors.primary,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                sliver: SliverToBoxAdapter(
+                  child: _buildHeader(context),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const SizedBox(height: 16),
+                    _buildWelcome(context),
+                    const SizedBox(height: 20),
+                    _buildUploadCard(context),
+                    const SizedBox(height: 28),
+                    _buildSectionHeader(
+                      context,
+                      title: 'Overview',
+                      action: 'Live metrics',
+                    ),
+                    const SizedBox(height: 14),
+                    _buildStatistics(context),
+                    const SizedBox(height: 28),
+                    _buildSectionHeader(
+                      context,
+                      title: 'Recent Documents',
+                      action: 'View all',
+                      onActionTap: () => context.go('/documents'),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildRecentDocuments(context),
+                    const SizedBox(height: 24),
+                    _buildAiAssistantCard(context),
+                    const SizedBox(height: 28),
+                  ]),
+                ),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.folder_outlined),
-            selectedIcon: Icon(Icons.folder_rounded),
-            label: 'Documents',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome),
-            label: 'AI Chat',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildDashboard() {
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          sliver: SliverToBoxAdapter(child: _buildHeader()),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              const SizedBox(height: 20),
-              _buildWelcome(),
-              const SizedBox(height: 24),
-              _buildUploadCard(),
-              const SizedBox(height: 28),
-              _buildSectionHeader('Overview', 'Last 30 days'),
-              const SizedBox(height: 14),
-              _buildStatistics(),
-              const SizedBox(height: 28),
-              _buildSectionHeader('Recent documents', 'See all'),
-              const SizedBox(height: 14),
-              _buildRecentDocuments(),
-              const SizedBox(height: 24),
-              _buildAiCard(),
-              const SizedBox(height: 24),
-            ]),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Row(
       children: [
         Container(
           height: 44,
           width: 44,
           decoration: BoxDecoration(
-            color: AppColors.primary,
+            gradient: AppColors.primaryGradient,
             borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.25),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-          child: const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
+          child: const Icon(
+            Icons.auto_awesome_rounded,
+            color: Colors.white,
+            size: 22,
+          ),
         ),
         const SizedBox(width: 12),
         const Expanded(
@@ -143,32 +113,53 @@ class _DashboardPageState extends State<DashboardPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'DocuMind AI',
+                AppConstants.appName,
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
+                  letterSpacing: -0.3,
                 ),
               ),
               Text(
                 'Document Intelligence',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
         ),
         IconButton(
-          onPressed: () {},
-          icon: const Icon(Icons.notifications_none_rounded),
+          tooltip: 'Notifications',
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No new notifications'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+          icon: const Icon(
+            Icons.notifications_none_rounded,
+            color: AppColors.textPrimary,
+          ),
         ),
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-          child: const Text(
-            'A',
-            style: TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.bold,
+        InkWell(
+          onTap: () => context.go('/profile'),
+          borderRadius: BorderRadius.circular(20),
+          child: CircleAvatar(
+            radius: 19,
+            backgroundColor: AppColors.primaryContainer,
+            child: const Text(
+              'A',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
             ),
           ),
         ),
@@ -176,46 +167,60 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildWelcome() {
+  Widget _buildWelcome(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Good to see you 👋',
-          style: TextStyle(
-            fontSize: 25,
-            fontWeight: FontWeight.bold,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w800,
             color: AppColors.textPrimary,
+            letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 8),
-        const Text(
-          'Your knowledge, organized and ready to explore.',
-          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+        const SizedBox(height: 6),
+        Text(
+          'Your knowledge base is organized and ready to explore.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildUploadCard() {
+  Widget _buildUploadCard(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF4F46E5), Color(0xFF6366F1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: AppColors.primaryGradient,
         borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.3),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.cloud_upload_outlined,
-            color: Colors.white,
-            size: 32,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.cloud_upload_outlined,
+              color: Colors.white,
+              size: 26,
+            ),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -223,39 +228,44 @@ class _DashboardPageState extends State<DashboardPage> {
             style: TextStyle(
               color: Colors.white,
               fontSize: 19,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Upload your files and let AI understand them. '
-            'Ask questions and get intelligent answers.',
+            'Upload your PDF, DOCX, and TXT files. Let AI extract, chunk, and index them for grounded semantic retrieval.',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.85),
+              color: Colors.white.withValues(alpha: 0.9),
               fontSize: 13,
-              height: 1.5,
+              height: 1.45,
             ),
           ),
           const SizedBox(height: 18),
           FilledButton.icon(
-            onPressed: _pickDocument,
+            onPressed: () => context.go('/documents'),
             style: FilledButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppColors.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add_rounded, size: 20),
             label: const Text(
-              'Upload document',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              'Upload Document',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Supported formats: PDF, DOCX, TXT',
+            'Formats: ${AppConstants.supportedExtensions.map((e) => e.toUpperCase()).join(', ')} • Up to ${AppConstants.maxFileSizeFormatted}',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.8),
               fontSize: 11,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -263,7 +273,12 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildSectionHeader(String title, String action) {
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required String title,
+    required String action,
+    VoidCallback? onActionTap,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -271,139 +286,174 @@ class _DashboardPageState extends State<DashboardPage> {
           title,
           style: const TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
+            letterSpacing: -0.3,
           ),
         ),
-        Text(
-          action,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.primary,
-            fontWeight: FontWeight.w600,
+        InkWell(
+          onTap: onActionTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Text(
+              action,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStatistics() {
-    return Row(
-      children: [
-        Expanded(
-          child: _statCard(
-            icon: Icons.folder_copy_outlined,
-            title: 'Documents',
-            value: '0',
-            color: const Color(0xFF4F46E5),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _statCard(
-            icon: Icons.auto_awesome,
-            title: 'AI Queries',
-            value: '0',
-            color: const Color(0xFF0891B2),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _statCard(
-            icon: Icons.check_circle_outline,
-            title: 'Processed',
-            value: '0',
-            color: const Color(0xFF16A34A),
-          ),
-        ),
-      ],
+  Widget _buildStatistics(BuildContext context) {
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        final stats = state is DashboardLoaded
+            ? state.stats
+            : null;
+
+        final totalDocs = stats?.totalDocuments.toString() ?? '0';
+        final processedDocs = stats?.processedDocuments.toString() ?? '0';
+        final failedDocs = stats?.failedDocuments.toString() ?? '0';
+        final queries = stats?.totalQueries.toString() ?? '0';
+
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: AppStatCard(
+                    icon: Icons.folder_copy_outlined,
+                    title: 'Total Files',
+                    value: totalDocs,
+                    color: AppColors.primary,
+                    subtitle: 'Indexed',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AppStatCard(
+                    icon: Icons.check_circle_outline_rounded,
+                    title: 'Processed',
+                    value: processedDocs,
+                    color: AppColors.statusCompleted,
+                    subtitle: 'Ready',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: AppStatCard(
+                    icon: Icons.error_outline_rounded,
+                    title: 'Failed',
+                    value: failedDocs,
+                    color: AppColors.statusFailed,
+                    subtitle: 'Issues',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AppStatCard(
+                    icon: Icons.auto_awesome_rounded,
+                    title: 'AI Queries',
+                    value: queries,
+                    color: AppColors.accent,
+                    subtitle: 'Grounded',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _statCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 14),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
+  Widget _buildRecentDocuments(BuildContext context) {
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        if (state is DashboardLoaded && state.recentDocuments.isNotEmpty) {
+          return Column(
+            children: state.recentDocuments.map((doc) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: AppCard(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryContainer,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.description_outlined,
+                          color: AppColors.primary,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              doc.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${doc.fileType.toUpperCase()} • ${doc.fileSize}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      StatusBadge(status: doc.status),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          );
+        }
+
+        return EmptyStateWidget(
+          icon: Icons.description_outlined,
+          title: 'No documents yet',
+          description:
+              'Upload your first file to begin extracting intelligence.',
+          actionLabel: 'Add Document',
+          onAction: () => context.go('/documents'),
+        );
+      },
     );
   }
 
-  Widget _buildRecentDocuments() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: const Column(
-        children: [
-          Icon(
-            Icons.description_outlined,
-            size: 38,
-            color: AppColors.textSecondary,
-          ),
-          SizedBox(height: 12),
-          Text(
-            'No documents yet',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Upload your first document to get started.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAiCard() {
-    return Container(
+  Widget _buildAiAssistantCard(BuildContext context) {
+    return AppCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDBEAFE)),
-      ),
+      color: const Color(0xFFF0FDF4),
+      borderColor: const Color(0xFFDCFCE7),
+      onTap: () => context.go('/chat'),
       child: Row(
         children: [
           Container(
@@ -412,11 +462,12 @@ class _DashboardPageState extends State<DashboardPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFBBF7D0)),
             ),
             child: const Icon(
               Icons.psychology_outlined,
-              color: AppColors.primary,
-              size: 27,
+              color: AppColors.statusCompleted,
+              size: 26,
             ),
           ),
           const SizedBox(width: 14),
@@ -425,17 +476,18 @@ class _DashboardPageState extends State<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Ask your documents',
+                  'Conversational Assistant',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                SizedBox(height: 5),
+                SizedBox(height: 4),
                 Text(
-                  'Find answers using AI-powered search.',
+                  'Query your documents using natural language.',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -445,32 +497,7 @@ class _DashboardPageState extends State<DashboardPage> {
           const Icon(
             Icons.arrow_forward_ios_rounded,
             size: 16,
-            color: AppColors.primary,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSimpleTab(String title) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.construction_outlined,
-            size: 48,
-            color: AppColors.primary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'This section will be implemented next.',
-            style: TextStyle(color: AppColors.textSecondary),
+            color: AppColors.statusCompleted,
           ),
         ],
       ),

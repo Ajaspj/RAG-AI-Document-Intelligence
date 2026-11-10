@@ -89,3 +89,4 @@ class AppStatCard extends StatelessWidget {
     );
   }
 }
+

@@ -7,11 +7,7 @@ class StatusBadge extends StatelessWidget {
   final DocumentStatus status;
   final bool showDot;
 
-  const StatusBadge({
-    super.key,
-    required this.status,
-    this.showDot = true,
-  });
+  const StatusBadge({super.key, required this.status, this.showDot = true});
 
   @override
   Widget build(BuildContext context) {
