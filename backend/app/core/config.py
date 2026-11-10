@@ -13,8 +13,32 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
-    # Database
-    DATABASE_URL: str = "sqlite:///./documind.db"
+    # Database (PostgreSQL with psycopg driver as primary)
+    DATABASE_URL: str = "postgresql+psycopg://documind:documind_pw@localhost:5432/documind_db"
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_TIMEOUT: int = 30
+    DB_POOL_RECYCLE: int = 1800  # Recycle connections after 30 minutes
+    DB_POOL_PRE_PING: bool = True
+
+    # Vector & Embedding Configuration (Gemini gemini-embedding-001 with 768 dimensions)
+    EMBEDDING_MODEL: str = "gemini-embedding-001"
+    EMBEDDING_DIMENSION: int = 768
+    EMBEDDING_TASK_TYPE_DOCUMENT: str = "RETRIEVAL_DOCUMENT"
+    EMBEDDING_TASK_TYPE_QUERY: str = "RETRIEVAL_QUERY"
+    EMBEDDING_NORMALIZE: bool = True
+
+    # Vector Indexing Strategy
+    VECTOR_INDEX_TYPE: str = "hnsw"
+    VECTOR_DISTANCE_STRATEGY: str = "cosine"
+    HNSW_M: int = 16
+    HNSW_EF_CONSTRUCTION: int = 64
+    HNSW_EF_SEARCH: int = 40
+
+    # Document Storage & Ingestion
+    DOCUMENT_STORAGE_DIR: str = "./storage/documents"
+    MAX_FILE_SIZE_BYTES: int = 20 * 1024 * 1024  # 20 MB
+    ALLOWED_DOCUMENT_EXTENSIONS: List[str] = ["pdf", "docx", "txt"]
     
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [

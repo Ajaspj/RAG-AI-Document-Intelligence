@@ -9,6 +9,30 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   DashboardBloc() : super(const DashboardInitial()) {
     on<LoadDashboardData>(_onLoadDashboardData);
     on<RefreshDashboardData>(_onRefreshDashboardData);
+    on<UpdateDashboardFromDocuments>(_onUpdateDashboardFromDocuments);
+  }
+
+  void _onUpdateDashboardFromDocuments(
+    UpdateDashboardFromDocuments event,
+    Emitter<DashboardState> emit,
+  ) {
+    final docs = event.documents;
+    final stats = DashboardStats(
+      totalDocuments: docs.length,
+      processedDocuments: docs.where((d) => d.isCompleted).length,
+      failedDocuments: docs.where((d) => d.isFailed).length,
+      totalQueries: 0,
+    );
+    final recentDocs = docs.take(5).map((d) => RecentDocument(
+      id: d.id,
+      name: d.filename,
+      fileType: d.fileExtension,
+      fileSize: d.formattedFileSize,
+      uploadedAt: d.uploadedAt,
+      status: d.status,
+    )).toList();
+
+    emit(DashboardLoaded(stats: stats, recentDocuments: recentDocs));
   }
 
   Future<void> _onLoadDashboardData(

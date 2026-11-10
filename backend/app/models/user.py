@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Boolean, Column, DateTime, String
+from sqlalchemy.orm import relationship
 from app.db.session import Base
 
 
@@ -19,3 +20,7 @@ class User(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+    # Relationships
+    documents = relationship("Document", back_populates="owner", cascade="all, delete-orphan")
+    chunks = relationship("DocumentChunk", back_populates="user", cascade="all, delete-orphan", passive_deletes=True)

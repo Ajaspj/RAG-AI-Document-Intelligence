@@ -18,7 +18,11 @@ class AuthResponseData {
 
 abstract class AuthRemoteDataSource {
   Future<AuthResponseData> signIn(String email, String password);
-  Future<AuthResponseData> signUp(String fullName, String email, String password);
+  Future<AuthResponseData> signUp(
+    String fullName,
+    String email,
+    String password,
+  );
   Future<UserModel> getMe();
   Future<String> forgotPassword(String email);
 }
@@ -33,10 +37,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     try {
       final response = await _apiClient.dio.post(
         '/auth/login',
-        data: {
-          'email': email.trim(),
-          'password': password,
-        },
+        data: {'email': email.trim(), 'password': password},
       );
 
       final data = response.data as Map<String, dynamic>;
@@ -97,7 +98,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         data: {'email': email.trim()},
       );
       final data = response.data as Map<String, dynamic>;
-      return (data['message'] ?? 'Password reset request submitted successfully.') as String;
+      return (data['message'] ??
+              'Password reset request submitted successfully.')
+          as String;
     } on DioException catch (e) {
       throw NetworkExceptions.handleDioError(e);
     }

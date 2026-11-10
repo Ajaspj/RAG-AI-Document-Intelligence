@@ -14,6 +14,14 @@ import 'features/auth/domain/usecases/sign_in.dart';
 import 'features/auth/domain/usecases/sign_out.dart';
 import 'features/auth/domain/usecases/sign_up.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
+import 'features/documents/data/datasources/document_remote_data_source.dart';
+import 'features/documents/data/repositories/document_repository_impl.dart';
+import 'features/documents/domain/usecases/delete_document.dart';
+import 'features/documents/domain/usecases/get_documents.dart';
+import 'features/documents/domain/usecases/pick_document.dart';
+import 'features/documents/domain/usecases/retry_upload.dart';
+import 'features/documents/domain/usecases/upload_document.dart';
+import 'features/documents/presentation/bloc/documents_bloc.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +43,18 @@ void main() {
     storageService: storageService,
   );
 
+  final documentRemoteDataSource = DocumentRemoteDataSourceImpl(apiClient);
+  final documentRepository = DocumentRepositoryImpl(
+    remoteDataSource: documentRemoteDataSource,
+  );
+  final documentsBloc = DocumentsBloc(
+    getDocumentsUseCase: GetDocumentsUseCase(documentRepository),
+    pickDocumentUseCase: PickDocumentUseCase(documentRepository),
+    uploadDocumentUseCase: UploadDocumentUseCase(documentRepository),
+    deleteDocumentUseCase: DeleteDocumentUseCase(documentRepository),
+    retryUploadUseCase: RetryUploadUseCase(documentRepository),
+  );
+
   final router = AppRouter.createRouter(
     authBloc: authBloc,
     storageService: storageService,
@@ -43,6 +63,7 @@ void main() {
   runApp(
     DocumentIntelligenceApp(
       authBloc: authBloc,
+      documentsBloc: documentsBloc,
       storageService: storageService,
       router: router,
     ),
@@ -51,12 +72,14 @@ void main() {
 
 class DocumentIntelligenceApp extends StatelessWidget {
   final AuthBloc? authBloc;
+  final DocumentsBloc? documentsBloc;
   final SecureStorageService? storageService;
   final GoRouter? router;
 
   const DocumentIntelligenceApp({
     super.key,
     this.authBloc,
+    this.documentsBloc,
     this.storageService,
     this.router,
   });
@@ -65,20 +88,33 @@ class DocumentIntelligenceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final effectiveStorageService = storageService ?? SecureStorageService();
     final effectiveApiClient = ApiClient(storageService: effectiveStorageService);
-    final effectiveDataSource = AuthRemoteDataSourceImpl(effectiveApiClient);
-    final effectiveRepo = AuthRepositoryImpl(
-      remoteDataSource: effectiveDataSource,
+    final effectiveAuthDataSource = AuthRemoteDataSourceImpl(effectiveApiClient);
+    final effectiveAuthRepo = AuthRepositoryImpl(
+      remoteDataSource: effectiveAuthDataSource,
       storageService: effectiveStorageService,
     );
 
     final effectiveAuthBloc = authBloc ??
         AuthBloc(
-          restoreSessionUseCase: RestoreSessionUseCase(effectiveRepo),
-          signInUseCase: SignInUseCase(effectiveRepo),
-          signUpUseCase: SignUpUseCase(effectiveRepo),
-          signOutUseCase: SignOutUseCase(effectiveRepo),
-          forgotPasswordUseCase: ForgotPasswordUseCase(effectiveRepo),
+          restoreSessionUseCase: RestoreSessionUseCase(effectiveAuthRepo),
+          signInUseCase: SignInUseCase(effectiveAuthRepo),
+          signUpUseCase: SignUpUseCase(effectiveAuthRepo),
+          signOutUseCase: SignOutUseCase(effectiveAuthRepo),
+          forgotPasswordUseCase: ForgotPasswordUseCase(effectiveAuthRepo),
           storageService: effectiveStorageService,
+        );
+
+    final effectiveDocDataSource = DocumentRemoteDataSourceImpl(effectiveApiClient);
+    final effectiveDocRepo = DocumentRepositoryImpl(
+      remoteDataSource: effectiveDocDataSource,
+    );
+    final effectiveDocumentsBloc = documentsBloc ??
+        DocumentsBloc(
+          getDocumentsUseCase: GetDocumentsUseCase(effectiveDocRepo),
+          pickDocumentUseCase: PickDocumentUseCase(effectiveDocRepo),
+          uploadDocumentUseCase: UploadDocumentUseCase(effectiveDocRepo),
+          deleteDocumentUseCase: DeleteDocumentUseCase(effectiveDocRepo),
+          retryUploadUseCase: RetryUploadUseCase(effectiveDocRepo),
         );
 
     final effectiveRouter = router ??
@@ -90,6 +126,7 @@ class DocumentIntelligenceApp extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<AuthBloc>.value(value: effectiveAuthBloc),
+        BlocProvider<DocumentsBloc>.value(value: effectiveDocumentsBloc),
       ],
       child: MaterialApp.router(
         title: 'DocuMind AI',

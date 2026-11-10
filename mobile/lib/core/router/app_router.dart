@@ -11,9 +11,11 @@ import '../../features/auth/presentation/pages/sign_up_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/chat/presentation/chat_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
+import '../../features/documents/domain/entities/document.dart';
 import '../../features/documents/presentation/documents_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
 import '../../shared/widgets/main_scaffold_wrapper.dart';
+import '../constants/app_constants.dart';
 import '../storage/secure_storage_service.dart';
 
 class GoRouterRefreshStream extends ChangeNotifier {
@@ -132,6 +134,29 @@ class AppRouter {
                 GoRoute(
                   path: '/documents',
                   builder: (context, state) => const DocumentsPage(),
+                  routes: [
+                    GoRoute(
+                      path: ':id',
+                      builder: (context, state) {
+                        final doc = state.extra as Document?;
+                        if (doc != null) {
+                          return DocumentDetailsPage(document: doc);
+                        }
+                        return DocumentDetailsPage(
+                          document: Document(
+                            id: state.pathParameters['id'] ?? '',
+                            filename: 'Document Details',
+                            originalFilename: 'Document Details',
+                            fileExtension: 'pdf',
+                            fileSize: 0,
+                            mimeType: 'application/pdf',
+                            status: DocumentStatus.pending,
+                            uploadedAt: DateTime.now(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),

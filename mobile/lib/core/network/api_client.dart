@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:dio/dio.dart';
 
 import '../constants/app_constants.dart';
@@ -9,10 +10,9 @@ class ApiClient {
   late final Dio dio;
   final SecureStorageService storageService;
 
-  ApiClient({
-    required this.storageService,
-    String? baseUrl,
-  }) {
+  Dio get client => dio;
+
+  ApiClient({required this.storageService, String? baseUrl}) {
     final defaultUrl = _resolveBaseUrl(baseUrl);
 
     dio = Dio(
@@ -29,10 +29,7 @@ class ApiClient {
     );
 
     dio.interceptors.add(
-      AuthInterceptor(
-        storageService: storageService,
-        dio: dio,
-      ),
+      AuthInterceptor(storageService: storageService, dio: dio),
     );
   }
 

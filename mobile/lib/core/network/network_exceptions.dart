@@ -5,6 +5,23 @@ import '../errors/failure.dart';
 class NetworkExceptions {
   NetworkExceptions._();
 
+  static Failure fromDioException(DioException error) => handleDioError(error);
+
+  static Failure fromStatusCode(int statusCode, [dynamic data]) {
+    String message = 'Server error occurred ($statusCode).';
+    if (data is Map<String, dynamic>) {
+      if (data['detail'] is String) {
+        message = data['detail'];
+      } else if (data['message'] is String) {
+        message = data['message'];
+      }
+    }
+    if (statusCode == 401) return AuthFailure(message, statusCode);
+    return ServerFailure(message, statusCode);
+  }
+
+  static Failure defaultError(String message) => ServerFailure(message);
+
   static Failure handleDioError(DioException error) {
     switch (error.type) {
       case DioExceptionType.connectionTimeout:

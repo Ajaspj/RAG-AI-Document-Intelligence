@@ -8,6 +8,9 @@ import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_stat_card.dart';
 import '../../../shared/widgets/empty_state_widget.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../documents/presentation/bloc/documents_bloc.dart';
+import '../../documents/presentation/bloc/documents_state.dart';
+import '../../documents/presentation/widgets/document_upload_sheet.dart';
 import 'bloc/dashboard_bloc.dart';
 import 'bloc/dashboard_event.dart';
 import 'bloc/dashboard_state.dart';
@@ -18,7 +21,16 @@ class DashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => DashboardBloc()..add(const LoadDashboardData()),
+      create: (context) {
+        final bloc = DashboardBloc()..add(const LoadDashboardData());
+        try {
+          final docsState = context.read<DocumentsBloc>().state;
+          if (docsState.documents.isNotEmpty) {
+            bloc.add(UpdateDashboardFromDocuments(docsState.documents));
+          }
+        } catch (_) {}
+        return bloc;
+      },
       child: const _DashboardView(),
     );
   }
@@ -29,10 +41,16 @@ class _DashboardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: RefreshIndicator(
+    return BlocListener<DocumentsBloc, DocumentsState>(
+      listener: (context, docsState) {
+        context.read<DashboardBloc>().add(
+              UpdateDashboardFromDocuments(docsState.documents),
+            );
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: RefreshIndicator(
           onRefresh: () async {
             context.read<DashboardBloc>().add(const RefreshDashboardData());
           },
@@ -81,8 +99,9 @@ class _DashboardView extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHeader(BuildContext context) {
     return Row(
@@ -243,7 +262,7 @@ class _DashboardView extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           FilledButton.icon(
-            onPressed: () => context.go('/documents'),
+            onPressed: () => DocumentUploadSheet.show(context),
             style: FilledButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppColors.primary,

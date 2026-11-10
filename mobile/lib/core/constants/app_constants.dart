@@ -6,8 +6,21 @@ class AppConstants {
 
   // File Upload Constraints
   static const List<String> supportedExtensions = ['pdf', 'docx', 'txt'];
-  static const int maxFileSizeBytes = 25 * 1024 * 1024; // 25 MB
-  static const String maxFileSizeFormatted = '25 MB';
+  static const int defaultMaxFileSizeBytes = 20 * 1024 * 1024; // 20 MB
+  static int maxFileSizeBytes = defaultMaxFileSizeBytes;
+  static String get maxFileSizeFormatted => '${(maxFileSizeBytes / (1024 * 1024)).round()} MB';
+
+  // Supported MIME Types
+  static const Map<String, List<String>> extensionMimeTypes = {
+    'pdf': ['application/pdf'],
+    'docx': [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'application/zip',
+      'application/octet-stream',
+    ],
+    'txt': ['text/plain', 'text/csv', 'application/octet-stream'],
+  };
 
   // Secure Storage Keys
   static const String tokenStorageKey = 'documind_auth_token';
@@ -26,6 +39,13 @@ enum DocumentStatus {
   processing,
   completed,
   failed;
+
+  bool get isCompleted => this == DocumentStatus.completed;
+  bool get isFailed => this == DocumentStatus.failed;
+  bool get isProcessing => this == DocumentStatus.processing;
+  bool get isUploading => this == DocumentStatus.uploading;
+  bool get isPending => this == DocumentStatus.pending;
+  bool get canRetry => this == DocumentStatus.failed;
 
   String get displayName {
     switch (this) {
