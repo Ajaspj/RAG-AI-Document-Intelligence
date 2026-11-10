@@ -1,3 +1,4 @@
+import logging
 import math
 import uuid
 from datetime import datetime, timezone
@@ -9,6 +10,8 @@ from app.core.config import settings
 from app.models.chunk import DocumentChunk
 from app.models.document import Document
 from app.schemas.chunk import ChunkCreate, ChunkSimilarityResponse, ChunkUpdate
+
+logger = logging.getLogger(__name__)
 
 
 class VectorService:
@@ -98,9 +101,10 @@ class VectorService:
             return chunk_models
         except Exception as exc:
             db.rollback()
+            logger.error("Failed to store document chunks: %s", exc, exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to store document chunks: {str(exc)}",
+                detail="Failed to store document chunks.",
             )
 
     @classmethod
@@ -147,9 +151,10 @@ class VectorService:
             return chunk
         except Exception as exc:
             db.rollback()
+            logger.error("Failed to update chunk embedding: %s", exc, exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to update chunk embedding: {str(exc)}",
+                detail="Failed to update chunk embedding.",
             )
 
     @classmethod

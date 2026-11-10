@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +10,8 @@ from app.models.document import Document
 from app.models.user import User
 from app.services.storage_service import StorageService
 from app.services.validation_service import ValidationService
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentService:
@@ -57,9 +60,10 @@ class DocumentService:
             db.rollback()
             # Clean up the persisted file from disk so no orphaned files remain
             StorageService.delete_file(storage_path)
+            logger.error("Failed to record document metadata in database: %s", exc, exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to record document metadata in database: {str(exc)}",
+                detail="Failed to record document metadata in database.",
             )
 
     @classmethod
@@ -129,9 +133,10 @@ class DocumentService:
             db.commit()
         except Exception as exc:
             db.rollback()
+            logger.error("Failed to delete document %s: %s", document_id, exc, exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to delete document record: {str(exc)}",
+                detail="Failed to delete document record.",
             )
 
         # Delete physical file from disk

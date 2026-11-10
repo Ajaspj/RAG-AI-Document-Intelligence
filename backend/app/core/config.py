@@ -6,12 +6,25 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     PROJECT_NAME: str = "DocuMind AI Backend"
     API_V1_STR: str = "/api/v1"
+    ENVIRONMENT: str = "development"
+    LOG_LEVEL: str = "INFO"
     
     # Security
     SECRET_KEY: str = "documind-super-secret-dev-key-change-in-production-2026-secure"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str, info) -> str:
+        env = info.data.get("ENVIRONMENT", "development")
+        if env == "production" and "change-in-production" in v:
+            raise ValueError(
+                "Insecure default SECRET_KEY detected in production environment! "
+                "You must supply a strong, unique secret key via the SECRET_KEY environment variable."
+            )
+        return v
     
     # Database (PostgreSQL with psycopg driver as primary)
     DATABASE_URL: str = "postgresql+psycopg://documind:documind_pw@localhost:5432/documind_db"

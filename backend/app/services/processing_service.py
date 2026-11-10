@@ -18,6 +18,17 @@ logger = logging.getLogger(__name__)
 class ProcessingService:
     """Coordinates the end-to-end ingestion pipeline: extraction, chunking, embedding generation, and vector persistence."""
 
+    @staticmethod
+    def _sanitize_error_message(err_msg: str) -> str:
+        """Strip API keys, passwords, and sensitive internal paths from error messages before saving to DB."""
+        import re
+        # Remove potential Gemini/Google API keys (e.g., AIzaSy...)
+        cleaned = re.sub(r"AIza[0-9A-Za-z-_]{35}", "[REDACTED_API_KEY]", err_msg)
+        # Remove absolute Windows or Unix paths
+        cleaned = re.sub(r"[A-Za-z]:\\[\w\s\\.-]+", "[STORAGE_PATH]", cleaned)
+        cleaned = re.sub(r"/(?:[a-zA-Z0-9_.-]+/)+[a-zA-Z0-9_.-]+", "[STORAGE_PATH]", cleaned)
+        return cleaned[:500]
+
     @classmethod
     def process_document(
         cls,
@@ -127,22 +138,36 @@ class ProcessingService:
 
         except (ValueError, GeminiEmbeddingError) as known_err:
             db.rollback()
-            err_msg = str(known_err)
-            logger.warning(f"Document ingestion failed for {doc.id}: {err_msg}")
-            doc.status = "failed"
-            doc.error_message = err_msg
-            doc.updated_at = datetime.now(timezone.utc)
-            db.commit()
+            err_msg = cls._sanitize_error_message(str(known_err))
+            logger.warning(f"Document ingestion failed for {document_id}: {err_msg}")
+            try:
+                target_doc = db.query(Document).filter(Document.id == document_id, Document.user_id == user_id).first()
+                if target_doc:
+                    target_doc.status = "failed"
+                    target_doc.error_message = err_msg
+                    target_doc.updated_at = datetime.now(timezone.utc)
+                    db.commit()
+                    return target_doc
+            except Exception as commit_err:
+                db.rollback()
+                logger.error(f"Failed to record status 'failed' for {document_id}: {commit_err}")
             return doc
 
         except Exception as unexpected_err:
             db.rollback()
-            err_msg = f"Unexpected processing error: {str(unexpected_err)}"
-            logger.error(f"Unexpected document ingestion failure for {doc.id}: {err_msg}", exc_info=True)
-            doc.status = "failed"
-            doc.error_message = err_msg
-            doc.updated_at = datetime.now(timezone.utc)
-            db.commit()
+            err_msg = cls._sanitize_error_message(f"Processing error: {str(unexpected_err)}")
+            logger.error(f"Unexpected document ingestion failure for {document_id}: {err_msg}", exc_info=True)
+            try:
+                target_doc = db.query(Document).filter(Document.id == document_id, Document.user_id == user_id).first()
+                if target_doc:
+                    target_doc.status = "failed"
+                    target_doc.error_message = err_msg
+                    target_doc.updated_at = datetime.now(timezone.utc)
+                    db.commit()
+                    return target_doc
+            except Exception as commit_err:
+                db.rollback()
+                logger.error(f"Failed to record status 'failed' for {document_id}: {commit_err}")
             return doc
 
     @classmethod

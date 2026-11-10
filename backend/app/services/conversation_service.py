@@ -1,10 +1,13 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 from app.models.conversation import Conversation, Message
 from app.schemas.chat import (
     CitationItem,
@@ -131,7 +134,8 @@ class ConversationService:
         total = query.count()
 
         convs = (
-            query.order_by(Conversation.updated_at.desc())
+            query.options(selectinload(Conversation.messages))
+            .order_by(Conversation.updated_at.desc())
             .offset(skip)
             .limit(limit)
             .all()
@@ -202,7 +206,15 @@ class ConversationService:
         total_messages = msg_query.count()
 
         if before:
-            before_msg = db.query(Message).filter(Message.id == before).first()
+            before_msg = (
+                db.query(Message)
+                .filter(
+                    Message.id == before,
+                    Message.conversation_id == conversation_id,
+                    Message.user_id == user_id,
+                )
+                .first()
+            )
             if before_msg:
                 msg_query = msg_query.filter(Message.created_at < before_msg.created_at)
 
@@ -369,7 +381,11 @@ class ConversationService:
         # 5. Fetch recent conversation history for conversational context (up to 6 recent turns)
         prior_messages = (
             db.query(Message)
-            .filter(Message.conversation_id == conversation_id, Message.id != user_msg.id)
+            .filter(
+                Message.conversation_id == conversation_id,
+                Message.user_id == user_id,
+                Message.id != user_msg.id,
+            )
             .order_by(Message.created_at.desc())
             .limit(6)
             .all()
@@ -387,10 +403,11 @@ class ConversationService:
                 history=formatted_history,
             )
         except Exception as exc:
+            logger.error("AI generation failed for conversation %s: %s", conversation_id, exc, exc_info=True)
             # User message remains preserved, but we do not store an empty/failed assistant message
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"AI generation failed: {str(exc)}",
+                detail="AI response generation failed. Please try again.",
             )
 
         # 7. Construct structured citations from actual retrieved chunks
