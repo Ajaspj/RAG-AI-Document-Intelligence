@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../auth/presentation/bloc/auth_bloc.dart';
+import '../../auth/presentation/bloc/auth_event.dart';
+import '../../auth/presentation/bloc/auth_state.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -10,10 +14,18 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final authState = context.watch<AuthBloc>().state;
+    final user = authState is AuthAuthenticated ? authState.user : null;
+
+    final displayName = user?.fullName.isNotEmpty == true ? user!.fullName : 'Workspace Owner';
+    final displayEmail = user?.email.isNotEmpty == true ? user!.email : 'user@documind.ai';
+    final initials = displayName.split(' ').map((n) => n.isNotEmpty ? n[0] : '').take(2).join().toUpperCase();
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Account & Settings')),
+      appBar: AppBar(
+        title: const Text('Account & Settings'),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -26,9 +38,9 @@ class ProfilePage extends StatelessWidget {
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: AppColors.primaryContainer,
-                    child: const Text(
-                      'AI',
-                      style: TextStyle(
+                    child: Text(
+                      initials.isNotEmpty ? initials : 'AI',
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
@@ -41,7 +53,7 @@ class ProfilePage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Workspace Owner',
+                          displayName,
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
@@ -49,7 +61,7 @@ class ProfilePage extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'user@documind.ai',
+                          displayEmail,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: AppColors.textSecondary,
                           ),
@@ -113,9 +125,7 @@ class ProfilePage extends StatelessWidget {
                       value: 0.0,
                       minHeight: 8,
                       backgroundColor: AppColors.surfaceVariant,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.primary,
-                      ),
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -180,12 +190,29 @@ class ProfilePage extends StatelessWidget {
                 iconColor: AppColors.error,
                 showArrow: false,
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Authentication service connects in Milestone 3.',
+                  showDialog(
+                    context: context,
+                    builder: (dialogCtx) => AlertDialog(
+                      title: const Text('Sign Out'),
+                      content: const Text(
+                        'Are you sure you want to sign out of DocuMind AI?',
                       ),
-                      behavior: SnackBarBehavior.floating,
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogCtx),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.error,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(dialogCtx);
+                            context.read<AuthBloc>().add(const SignOutRequested());
+                          },
+                          child: const Text('Sign Out'),
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -217,11 +244,7 @@ class ProfilePage extends StatelessWidget {
     bool showArrow = true,
   }) {
     return ListTile(
-      leading: Icon(
-        icon,
-        color: iconColor ?? AppColors.textSecondary,
-        size: 22,
-      ),
+      leading: Icon(icon, color: iconColor ?? AppColors.textSecondary, size: 22),
       title: Text(
         title,
         style: TextStyle(
@@ -235,11 +258,7 @@ class ProfilePage extends StatelessWidget {
         style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
       ),
       trailing: showArrow
-          ? const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.textMuted,
-              size: 20,
-            )
+          ? const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20)
           : null,
       onTap: onTap,
     );
