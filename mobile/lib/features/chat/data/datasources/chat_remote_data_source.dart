@@ -253,19 +253,6 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       rethrow;
     }
   }
-        return [];
-      } else {
-        throw NetworkExceptions.fromStatusCode(response.statusCode ?? 500, response.data);
-      }
-    } on DioException catch (e) {
-      throw NetworkExceptions.fromDioException(e);
-    } catch (e) {
-      if (e is! Exception) {
-        throw NetworkExceptions.defaultError(e.toString());
-      }
-      rethrow;
-    }
-  }
 
   @override
   Future<ChatMessageModel> sendMessage({

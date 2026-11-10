@@ -285,7 +285,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     SendMessageEvent event,
     Emitter<ChatState> emit,
   ) async {
-    final cleanContent = event.content.strip();
+    final cleanContent = event.content.trim();
     if (cleanContent.isEmpty) return;
 
     // Optimistically create user message
@@ -387,11 +387,4 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   }
 }
 
-extension StringStrip on String {
-  String strip() => trim();
-}
-
-extension StringStrip on String {
-  String strip() => trim();
-}
 
