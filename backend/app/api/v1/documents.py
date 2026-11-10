@@ -1,16 +1,20 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.v1.auth import get_current_user
 from app.db.session import get_db
+from app.models.chunk import DocumentChunk
 from app.models.user import User
 from app.schemas.document import (
     DocumentDeleteResponse,
+    DocumentReprocessResponse,
     DocumentResponse,
+    DocumentStatusResponse,
 )
 from app.services.document_service import DocumentService
+from app.services.processing_service import ProcessingService
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -38,16 +42,26 @@ def get_documents(
 
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="Document file to upload (PDF, DOCX, TXT up to 20MB)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Upload a document (PDF, DOCX, TXT) with validation, chunked streaming storage, and database persistence."""
+    """Upload a document with streaming validation and storage, then automatically trigger background text extraction, chunking, and Gemini embedding generation."""
+    # 1. Validate file format and persist safely to storage and DB
     doc = await DocumentService.upload_document(
         db=db,
         upload_file=file,
         current_user=current_user,
     )
+
+    # 2. Schedule asynchronous background ingestion (extraction -> chunking -> gemini embedding -> pgvector)
+    background_tasks.add_task(
+        ProcessingService.process_document_background,
+        document_id=doc.id,
+        user_id=current_user.id,
+    )
+
     return doc
 
 
@@ -66,13 +80,64 @@ def get_document_details(
     return doc
 
 
+@router.get("/{document_id}/status", response_model=DocumentStatusResponse)
+def get_document_status(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Query live processing status, chunk count, and failure details for an uploaded document."""
+    doc = DocumentService.get_user_document_by_id(
+        db=db,
+        document_id=document_id,
+        user_id=current_user.id,
+    )
+    chunk_count = (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.document_id == document_id)
+        .count()
+    )
+    return DocumentStatusResponse(
+        id=doc.id,
+        status=doc.status,
+        error_message=doc.error_message,
+        chunk_count=chunk_count,
+        updated_at=doc.updated_at,
+    )
+
+
+@router.post("/{document_id}/process", response_model=DocumentReprocessResponse)
+def reprocess_document(
+    document_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Trigger or retry background ingestion (text extraction, chunking, and embedding generation) for an existing document."""
+    doc = DocumentService.get_user_document_by_id(
+        db=db,
+        document_id=document_id,
+        user_id=current_user.id,
+    )
+    background_tasks.add_task(
+        ProcessingService.process_document_background,
+        document_id=doc.id,
+        user_id=current_user.id,
+    )
+    return DocumentReprocessResponse(
+        id=doc.id,
+        status="processing",
+        message="Document ingestion re-processing scheduled in background.",
+    )
+
+
 @router.delete("/{document_id}", response_model=DocumentDeleteResponse)
 def delete_document(
     document_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete a document record from the database and remove its physical file from disk."""
+    """Delete a document record, its physical file from disk, and all associated vector chunks."""
     DocumentService.delete_user_document(
         db=db,
         document_id=document_id,

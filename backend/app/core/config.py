@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Optional, Union
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -21,12 +21,22 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE: int = 1800  # Recycle connections after 30 minutes
     DB_POOL_PRE_PING: bool = True
 
+    # Gemini API Configuration
+    GEMINI_API_KEY: Optional[str] = None
+
     # Vector & Embedding Configuration (Gemini gemini-embedding-001 with 768 dimensions)
     EMBEDDING_MODEL: str = "gemini-embedding-001"
     EMBEDDING_DIMENSION: int = 768
     EMBEDDING_TASK_TYPE_DOCUMENT: str = "RETRIEVAL_DOCUMENT"
     EMBEDDING_TASK_TYPE_QUERY: str = "RETRIEVAL_QUERY"
     EMBEDDING_NORMALIZE: bool = True
+    MAX_EMBEDDING_BATCH_SIZE: int = 32
+    EMBEDDING_MAX_RETRIES: int = 3
+    EMBEDDING_RETRY_DELAY: float = 1.0
+
+    # Text Chunking Configuration (Conservative token ceiling safely under 2,048 limit)
+    CHUNK_SIZE_TOKENS: int = 1500
+    CHUNK_OVERLAP_TOKENS: int = 200
 
     # Vector Indexing Strategy
     VECTOR_INDEX_TYPE: str = "hnsw"

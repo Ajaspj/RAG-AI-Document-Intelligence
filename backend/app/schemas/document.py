@@ -51,7 +51,7 @@ class DocumentResponse(BaseModel):
                 "file_size": data.file_size,
                 "mime_type": data.mime_type,
                 "status": data.status,
-                "processing_progress": 0.0,
+                "processing_progress": 1.0 if data.status == "completed" else (0.5 if data.status == "processing" else 0.0),
                 "error_message": data.error_message,
                 "file_hash": data.file_hash,
                 "created_at": data.created_at,
@@ -75,3 +75,17 @@ class DocumentDeleteResponse(BaseModel):
     id: str
     message: str
     success: bool = True
+
+
+class DocumentStatusResponse(BaseModel):
+    id: str
+    status: str
+    error_message: Optional[str] = None
+    chunk_count: int = 0
+    updated_at: Optional[datetime] = None
+
+
+class DocumentReprocessResponse(BaseModel):
+    id: str
+    status: str
+    message: str
