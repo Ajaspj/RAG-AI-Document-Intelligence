@@ -38,6 +38,8 @@ class ConversationResponse(BaseModel):
     user_id: str
     title: str
     document_ids: Optional[List[str]] = Field(default_factory=list)
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     message_count: int = 0
@@ -47,9 +49,12 @@ class ConversationResponse(BaseModel):
 
 
 class ConversationDetailResponse(ConversationResponse):
-    """Full conversation history including sequential messages."""
+    """Full conversation history including sequential messages and pagination metadata."""
 
     messages: List[MessageResponse] = Field(default_factory=list)
+    total_messages: int = 0
+    has_more: bool = False
+    next_cursor: Optional[str] = None
 
 
 class CreateConversationRequest(BaseModel):
@@ -57,6 +62,13 @@ class CreateConversationRequest(BaseModel):
 
     title: Optional[str] = Field(None, max_length=255, description="Optional title")
     document_ids: Optional[List[str]] = Field(None, description="Optional list of document IDs to scope")
+
+
+class UpdateConversationRequest(BaseModel):
+    """Payload to update/rename or archive/restore a conversation."""
+
+    title: Optional[str] = Field(None, min_length=1, max_length=255, description="Updated conversation title")
+    is_archived: Optional[bool] = Field(None, description="Set true to archive, false to restore")
 
 
 class SendMessageRequest(BaseModel):
@@ -86,3 +98,17 @@ class ConversationListResponse(BaseModel):
     items: List[ConversationResponse]
     total: int
 
+
+class MessageListResponse(BaseModel):
+    """Paginated collection of conversation messages."""
+
+    items: List[MessageResponse]
+    total: int
+    has_more: bool = False
+    next_cursor: Optional[str] = None
+
+
+class ConversationActionResponse(BaseModel):
+    id: str
+    message: str
+    success: bool = True

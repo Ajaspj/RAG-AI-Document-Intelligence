@@ -20,10 +20,12 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  int _previousMessageCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ChatBloc>().add(const LoadConversationsEvent());
     });
@@ -31,8 +33,24 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.pixels <= 80) {
+      final state = context.read<ChatBloc>().state;
+      if (state.hasActiveConversation &&
+          state.hasMoreMessages &&
+          !state.isLoadingOlderMessages &&
+          state.messages.isNotEmpty) {
+        context.read<ChatBloc>().add(
+              LoadOlderMessagesEvent(state.activeConversation!.id),
+            );
+      }
+    }
   }
 
   void _scrollToBottom() {
@@ -63,10 +81,24 @@ class _ChatPageState extends State<ChatPage> {
           );
         }
 
-        // Auto-scroll to bottom on message list change or sending
-        if (state.messages.isNotEmpty) {
+        if (state.successMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.successMessage!),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+
+        // Only auto-scroll to bottom on sending or new latest messages, not older prepends
+        if (state.status == ChatStatus.sending) {
+          _scrollToBottom();
+        } else if (state.messages.length > _previousMessageCount && !state.isLoadingOlderMessages) {
           _scrollToBottom();
         }
+        _previousMessageCount = state.messages.length;
       },
       builder: (context, state) {
         final title = state.activeConversation?.title ?? 'DocuMind Assistant';
@@ -125,12 +157,29 @@ class _ChatPageState extends State<ChatPage> {
       return _buildEmptyState(context);
     }
 
+    final hasTopLoader = state.isLoadingOlderMessages;
+    final totalCount = state.messages.length + (hasTopLoader ? 1 : 0);
+
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: state.messages.length,
+      itemCount: totalCount,
       itemBuilder: (context, index) {
-        final message = state.messages[index];
+        if (hasTopLoader && index == 0) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+
+        final messageIndex = hasTopLoader ? index - 1 : index;
+        final message = state.messages[messageIndex];
         return ChatMessageBubble(message: message);
       },
     );

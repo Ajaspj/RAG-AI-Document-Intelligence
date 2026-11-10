@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -51,6 +52,18 @@ class Conversation(Base):
         default=list,
         doc="Optional list of document UUIDs to scope this conversation to",
     )
+    is_archived = Column(
+        Boolean,
+        default=False,
+        nullable=False,
+        index=True,
+        doc="Whether this conversation is archived and hidden from default active list",
+    )
+    archived_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Timestamp when conversation was archived",
+    )
     created_at = Column(
         DateTime(timezone=True),
         default=utc_now,
@@ -78,6 +91,7 @@ class Conversation(Base):
 
     __table_args__ = (
         Index("idx_conversations_user_updated", "user_id", "updated_at"),
+        Index("idx_conversations_user_archived_updated", "user_id", "is_archived", "updated_at"),
     )
 
 

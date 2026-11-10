@@ -19,6 +19,12 @@ class ChatState extends Equatable {
   final List<ChatMessage> messages;
   final List<String> scopedDocumentIds;
   final String? errorMessage;
+  final String? successMessage;
+  final bool showArchived;
+  final String searchQuery;
+  final bool isLoadingOlderMessages;
+  final bool hasMoreMessages;
+  final String? nextCursor;
 
   const ChatState({
     this.status = ChatStatus.initial,
@@ -27,9 +33,16 @@ class ChatState extends Equatable {
     this.messages = const [],
     this.scopedDocumentIds = const [],
     this.errorMessage,
+    this.successMessage,
+    this.showArchived = false,
+    this.searchQuery = '',
+    this.isLoadingOlderMessages = false,
+    this.hasMoreMessages = false,
+    this.nextCursor,
   });
 
-  bool get isLoading => status == ChatStatus.loadingConversations || status == ChatStatus.loadingMessages;
+  bool get isLoading =>
+      status == ChatStatus.loadingConversations || status == ChatStatus.loadingMessages;
   bool get isSending => status == ChatStatus.sending;
   bool get hasActiveConversation => activeConversation != null;
 
@@ -41,14 +54,31 @@ class ChatState extends Equatable {
     List<ChatMessage>? messages,
     List<String>? scopedDocumentIds,
     String? errorMessage,
+    bool clearErrorMessage = false,
+    String? successMessage,
+    bool clearSuccessMessage = false,
+    bool? showArchived,
+    String? searchQuery,
+    bool? isLoadingOlderMessages,
+    bool? hasMoreMessages,
+    String? nextCursor,
+    bool clearNextCursor = false,
   }) {
     return ChatState(
       status: status ?? this.status,
       conversations: conversations ?? this.conversations,
-      activeConversation: clearActiveConversation ? null : (activeConversation ?? this.activeConversation),
+      activeConversation: clearActiveConversation
+          ? null
+          : (activeConversation ?? this.activeConversation),
       messages: messages ?? this.messages,
       scopedDocumentIds: scopedDocumentIds ?? this.scopedDocumentIds,
-      errorMessage: errorMessage,
+      errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
+      successMessage: clearSuccessMessage ? null : (successMessage ?? this.successMessage),
+      showArchived: showArchived ?? this.showArchived,
+      searchQuery: searchQuery ?? this.searchQuery,
+      isLoadingOlderMessages: isLoadingOlderMessages ?? this.isLoadingOlderMessages,
+      hasMoreMessages: hasMoreMessages ?? this.hasMoreMessages,
+      nextCursor: clearNextCursor ? null : (nextCursor ?? this.nextCursor),
     );
   }
 
@@ -60,6 +90,12 @@ class ChatState extends Equatable {
         messages,
         scopedDocumentIds,
         errorMessage,
+        successMessage,
+        showArchived,
+        searchQuery,
+        isLoadingOlderMessages,
+        hasMoreMessages,
+        nextCursor,
       ];
 }
 

@@ -9,8 +9,18 @@ class ChatRepositoryImpl implements ChatRepository {
   const ChatRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<List<Conversation>> getConversations({int skip = 0, int limit = 20}) {
-    return remoteDataSource.getConversations(skip: skip, limit: limit);
+  Future<List<Conversation>> getConversations({
+    int skip = 0,
+    int limit = 20,
+    String? search,
+    bool isArchived = false,
+  }) {
+    return remoteDataSource.getConversations(
+      skip: skip,
+      limit: limit,
+      search: search,
+      isArchived: isArchived,
+    );
   }
 
   @override
@@ -19,8 +29,40 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<List<ChatMessage>> getMessages(String conversationId) {
-    return remoteDataSource.getMessages(conversationId);
+  Future<Conversation> updateConversation(
+    String conversationId, {
+    String? title,
+    bool? isArchived,
+  }) {
+    return remoteDataSource.updateConversation(
+      conversationId,
+      title: title,
+      isArchived: isArchived,
+    );
+  }
+
+  @override
+  Future<void> archiveConversation(String conversationId) {
+    return remoteDataSource.archiveConversation(conversationId);
+  }
+
+  @override
+  Future<void> restoreConversation(String conversationId) {
+    return remoteDataSource.restoreConversation(conversationId);
+  }
+
+  @override
+  Future<List<ChatMessage>> getMessages(String conversationId, {int limit = 50, String? before}) {
+    return remoteDataSource.getMessages(conversationId, limit: limit, before: before);
+  }
+
+  @override
+  Future<List<ChatMessage>> getOlderMessages(
+    String conversationId, {
+    required String before,
+    int limit = 30,
+  }) {
+    return remoteDataSource.getOlderMessages(conversationId, before: before, limit: limit);
   }
 
   @override

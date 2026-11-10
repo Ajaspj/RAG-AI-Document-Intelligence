@@ -10,6 +10,7 @@ from app.schemas.chat import (
     CitationItem,
     ConversationDetailResponse,
     ConversationResponse,
+    MessageListResponse,
     MessageResponse,
     SendMessageResponse,
 )
@@ -20,7 +21,7 @@ from app.services.search_service import SearchService
 
 
 class ConversationService:
-    """Service orchestrating multi-turn grounded conversations, message persistence, and structured citation linking."""
+    """Service orchestrating multi-turn grounded conversations, message persistence, search, and lifecycle management."""
 
     @classmethod
     def create_conversation(
@@ -45,6 +46,8 @@ class ConversationService:
             user_id=user_id,
             title=conv_title,
             document_ids=scoped_docs or [],
+            is_archived=False,
+            archived_at=None,
             created_at=now,
             updated_at=now,
         )
@@ -55,15 +58,76 @@ class ConversationService:
         return conv
 
     @classmethod
+    def update_conversation(
+        cls,
+        db: Session,
+        conversation_id: str,
+        user_id: str,
+        title: Optional[str] = None,
+        is_archived: Optional[bool] = None,
+    ) -> ConversationResponse:
+        """Rename or archive/restore a conversation owned strictly by the authenticated user."""
+        conv = (
+            db.query(Conversation)
+            .filter(Conversation.id == conversation_id, Conversation.user_id == user_id)
+            .first()
+        )
+        if not conv:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found or access denied.",
+            )
+
+        now = datetime.now(timezone.utc)
+        if title is not None:
+            clean_title = title.strip()
+            if not clean_title:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Conversation title cannot be empty or blank.",
+                )
+            conv.title = clean_title[:255]
+
+        if is_archived is not None:
+            conv.is_archived = is_archived
+            conv.archived_at = now if is_archived else None
+
+        conv.updated_at = now
+        db.commit()
+        db.refresh(conv)
+
+        return ConversationResponse(
+            id=conv.id,
+            user_id=conv.user_id,
+            title=conv.title,
+            document_ids=conv.document_ids or [],
+            is_archived=conv.is_archived,
+            archived_at=conv.archived_at,
+            created_at=conv.created_at,
+            updated_at=conv.updated_at,
+            message_count=len(conv.messages),
+            latest_message=None,
+        )
+
+    @classmethod
     def get_user_conversations(
         cls,
         db: Session,
         user_id: str,
         skip: int = 0,
         limit: int = 20,
+        search: Optional[str] = None,
+        is_archived: bool = False,
     ) -> Tuple[List[ConversationResponse], int]:
-        """List paginated conversations for a user, ordered by most recent activity."""
-        query = db.query(Conversation).filter(Conversation.user_id == user_id)
+        """List paginated conversations for a user, with optional title search and active/archived filtering."""
+        query = db.query(Conversation).filter(
+            Conversation.user_id == user_id,
+            Conversation.is_archived == is_archived,
+        )
+
+        if search and search.strip():
+            query = query.filter(Conversation.title.ilike(f"%{search.strip()}%"))
+
         total = query.count()
 
         convs = (
@@ -98,6 +162,8 @@ class ConversationService:
                     user_id=c.user_id,
                     title=c.title,
                     document_ids=c.document_ids or [],
+                    is_archived=c.is_archived,
+                    archived_at=c.archived_at,
                     created_at=c.created_at,
                     updated_at=c.updated_at,
                     message_count=msg_count,
@@ -113,8 +179,10 @@ class ConversationService:
         db: Session,
         conversation_id: str,
         user_id: str,
+        limit: int = 50,
+        before: Optional[str] = None,
     ) -> ConversationDetailResponse:
-        """Retrieve full conversation details with complete sequential message history."""
+        """Retrieve full conversation details and paginated sequential message history."""
         conv = (
             db.query(Conversation)
             .filter(Conversation.id == conversation_id, Conversation.user_id == user_id)
@@ -125,6 +193,31 @@ class ConversationService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found or access denied.",
             )
+
+        # Base query for messages
+        msg_query = db.query(Message).filter(
+            Message.conversation_id == conversation_id,
+            Message.user_id == user_id,
+        )
+        total_messages = msg_query.count()
+
+        if before:
+            before_msg = db.query(Message).filter(Message.id == before).first()
+            if before_msg:
+                msg_query = msg_query.filter(Message.created_at < before_msg.created_at)
+
+        # Fetch newest first for pagination, then invert to chronological order
+        raw_msgs = (
+            msg_query.order_by(Message.created_at.desc())
+            .limit(limit + 1)
+            .all()
+        )
+
+        has_more = len(raw_msgs) > limit
+        page_msgs = raw_msgs[:limit]
+        next_cursor = page_msgs[-1].id if has_more and page_msgs else None
+
+        chrono_msgs = list(reversed(page_msgs))
 
         messages_dto: List[MessageResponse] = [
             MessageResponse(
@@ -137,7 +230,7 @@ class ConversationService:
                 token_usage=m.token_usage or {},
                 created_at=m.created_at,
             )
-            for m in conv.messages
+            for m in chrono_msgs
         ]
 
         latest = messages_dto[-1] if messages_dto else None
@@ -147,11 +240,40 @@ class ConversationService:
             user_id=conv.user_id,
             title=conv.title,
             document_ids=conv.document_ids or [],
+            is_archived=conv.is_archived,
+            archived_at=conv.archived_at,
             created_at=conv.created_at,
             updated_at=conv.updated_at,
-            message_count=len(messages_dto),
+            message_count=total_messages,
             latest_message=latest,
             messages=messages_dto,
+            total_messages=total_messages,
+            has_more=has_more,
+            next_cursor=next_cursor,
+        )
+
+    @classmethod
+    def get_conversation_messages(
+        cls,
+        db: Session,
+        conversation_id: str,
+        user_id: str,
+        limit: int = 30,
+        before: Optional[str] = None,
+    ) -> MessageListResponse:
+        """Fetch older messages in chronological order for scrollback pagination."""
+        detail = cls.get_conversation_detail(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
+            limit=limit,
+            before=before,
+        )
+        return MessageListResponse(
+            items=detail.messages,
+            total=detail.total_messages,
+            has_more=detail.has_more,
+            next_cursor=detail.next_cursor,
         )
 
     @classmethod
@@ -161,7 +283,7 @@ class ConversationService:
         conversation_id: str,
         user_id: str,
     ) -> None:
-        """Delete a conversation and its messages cascade."""
+        """Delete a conversation and all its associated messages cascade."""
         conv = (
             db.query(Conversation)
             .filter(Conversation.id == conversation_id, Conversation.user_id == user_id)
@@ -265,7 +387,7 @@ class ConversationService:
                 history=formatted_history,
             )
         except Exception as exc:
-            # Note: User message is preserved, but we do not store a broken assistant message
+            # User message remains preserved, but we do not store an empty/failed assistant message
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"AI generation failed: {str(exc)}",
@@ -274,7 +396,6 @@ class ConversationService:
         # 7. Construct structured citations from actual retrieved chunks
         citations_data: List[Dict[str, Any]] = []
         for chunk in rag_response.context_chunks:
-            # 200-char excerpt for supporting evidence
             snippet = chunk.content[:240].strip()
             if len(chunk.content) > 240:
                 snippet += "..."
@@ -313,7 +434,6 @@ class ConversationService:
 
         # 9. Update conversation timestamp and title if initial
         if conv.title == "New Conversation":
-            # Auto-generate title from first 6 words of question
             words = clean_content.split()
             auto_title = " ".join(words[:6])
             if len(words) > 6:
@@ -372,4 +492,3 @@ class ConversationService:
             content=content,
             document_ids=document_ids,
         )
-

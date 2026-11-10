@@ -7,6 +7,8 @@ class ConversationModel extends Conversation {
     required super.userId,
     required super.title,
     super.documentIds = const [],
+    super.isArchived = false,
+    super.archivedAt,
     required super.createdAt,
     required super.updatedAt,
     super.messageCount = 0,
@@ -24,11 +26,19 @@ class ConversationModel extends Conversation {
       latest = ChatMessageModel.fromJson(json['latestMessage'] as Map<String, dynamic>);
     }
 
+    DateTime? archivedAt;
+    final archivedAtRaw = json['archived_at'] ?? json['archivedAt'];
+    if (archivedAtRaw is String) {
+      archivedAt = DateTime.tryParse(archivedAtRaw);
+    }
+
     return ConversationModel(
       id: json['id'] as String? ?? '',
       userId: json['user_id'] as String? ?? json['userId'] as String? ?? '',
       title: json['title'] as String? ?? 'New Conversation',
       documentIds: docIds,
+      isArchived: json['is_archived'] as bool? ?? json['isArchived'] as bool? ?? false,
+      archivedAt: archivedAt,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
           : (json['createdAt'] != null
@@ -50,6 +60,8 @@ class ConversationModel extends Conversation {
       'user_id': userId,
       'title': title,
       'document_ids': documentIds,
+      'is_archived': isArchived,
+      'archived_at': archivedAt?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'message_count': messageCount,

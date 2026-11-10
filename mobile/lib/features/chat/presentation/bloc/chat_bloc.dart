@@ -6,6 +6,14 @@ import '../../domain/repositories/chat_repository.dart';
 import 'chat_event.dart';
 import 'chat_state.dart';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../domain/entities/chat_message.dart';
+import '../../domain/entities/conversation.dart';
+import '../../domain/repositories/chat_repository.dart';
+import 'chat_event.dart';
+import 'chat_state.dart';
+
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final ChatRepository chatRepository;
 
@@ -14,6 +22,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<SelectConversationEvent>(_onSelectConversation);
     on<NewConversationEvent>(_onNewConversation);
     on<SendMessageEvent>(_onSendMessage);
+    on<RenameConversationEvent>(_onRenameConversation);
+    on<ArchiveConversationEvent>(_onArchiveConversation);
+    on<RestoreConversationEvent>(_onRestoreConversation);
+    on<SearchConversationsEvent>(_onSearchConversations);
+    on<ToggleArchivedFilterEvent>(_onToggleArchivedFilter);
+    on<LoadOlderMessagesEvent>(_onLoadOlderMessages);
     on<DeleteConversationEvent>(_onDeleteConversation);
     on<SetScopedDocumentsEvent>(_onSetScopedDocuments);
   }
@@ -22,9 +36,21 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     LoadConversationsEvent event,
     Emitter<ChatState> emit,
   ) async {
-    emit(state.copyWith(status: ChatStatus.loadingConversations));
+    final bool isArchived = event.isArchived ?? state.showArchived;
+    final String search = event.search ?? state.searchQuery;
+
+    emit(state.copyWith(
+      status: ChatStatus.loadingConversations,
+      showArchived: isArchived,
+      searchQuery: search,
+      clearErrorMessage: true,
+      clearSuccessMessage: true,
+    ));
     try {
-      final conversations = await chatRepository.getConversations();
+      final conversations = await chatRepository.getConversations(
+        isArchived: isArchived,
+        search: search.isNotEmpty ? search : null,
+      );
       emit(state.copyWith(
         status: ChatStatus.loaded,
         conversations: conversations,
@@ -41,7 +67,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     SelectConversationEvent event,
     Emitter<ChatState> emit,
   ) async {
-    emit(state.copyWith(status: ChatStatus.loadingMessages));
+    emit(state.copyWith(
+      status: ChatStatus.loadingMessages,
+      clearErrorMessage: true,
+      clearSuccessMessage: true,
+    ));
     try {
       final conversation = state.conversations.firstWhere(
         (c) => c.id == event.conversationId,
@@ -54,13 +84,15 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         ),
       );
 
-      final messages = await chatRepository.getMessages(event.conversationId);
+      final messages = await chatRepository.getMessages(event.conversationId, limit: 50);
 
       emit(state.copyWith(
         status: ChatStatus.loaded,
         activeConversation: conversation,
         messages: messages,
         scopedDocumentIds: conversation.documentIds,
+        hasMoreMessages: messages.length >= 50,
+        isLoadingOlderMessages: false,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -79,7 +111,174 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       messages: [],
       scopedDocumentIds: event.documentIds ?? [],
       status: ChatStatus.loaded,
+      clearErrorMessage: true,
+      clearSuccessMessage: true,
+      hasMoreMessages: false,
+      isLoadingOlderMessages: false,
     ));
+  }
+
+  Future<void> _onRenameConversation(
+    RenameConversationEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    try {
+      final updated = await chatRepository.updateConversation(
+        event.conversationId,
+        title: event.newTitle,
+      );
+
+      final updatedList = state.conversations.map((c) {
+        return c.id == event.conversationId ? updated : c;
+      }).toList();
+
+      final active = state.activeConversation?.id == event.conversationId
+          ? updated
+          : state.activeConversation;
+
+      emit(state.copyWith(
+        conversations: updatedList,
+        activeConversation: active,
+        successMessage: 'Conversation renamed.',
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        errorMessage: 'Failed to rename conversation: ${e.toString()}',
+      ));
+    }
+  }
+
+  Future<void> _onArchiveConversation(
+    ArchiveConversationEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    try {
+      await chatRepository.archiveConversation(event.conversationId);
+      final updatedList = state.conversations.where((c) => c.id != event.conversationId).toList();
+      final bool wasActive = state.activeConversation?.id == event.conversationId;
+
+      emit(state.copyWith(
+        conversations: updatedList,
+        clearActiveConversation: wasActive,
+        messages: wasActive ? [] : state.messages,
+        successMessage: 'Conversation archived.',
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        errorMessage: 'Failed to archive conversation: ${e.toString()}',
+      ));
+    }
+  }
+
+  Future<void> _onRestoreConversation(
+    RestoreConversationEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    try {
+      await chatRepository.restoreConversation(event.conversationId);
+      final updatedList = state.conversations.where((c) => c.id != event.conversationId).toList();
+
+      emit(state.copyWith(
+        conversations: updatedList,
+        successMessage: 'Conversation restored to active.',
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        errorMessage: 'Failed to restore conversation: ${e.toString()}',
+      ));
+    }
+  }
+
+  Future<void> _onSearchConversations(
+    SearchConversationsEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    emit(state.copyWith(
+      searchQuery: event.query,
+      status: ChatStatus.loadingConversations,
+      clearErrorMessage: true,
+      clearSuccessMessage: true,
+    ));
+    try {
+      final conversations = await chatRepository.getConversations(
+        isArchived: state.showArchived,
+        search: event.query.isNotEmpty ? event.query : null,
+      );
+      emit(state.copyWith(
+        status: ChatStatus.loaded,
+        conversations: conversations,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        status: ChatStatus.error,
+        errorMessage: e.toString(),
+      ));
+    }
+  }
+
+  Future<void> _onToggleArchivedFilter(
+    ToggleArchivedFilterEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    emit(state.copyWith(
+      showArchived: event.showArchived,
+      status: ChatStatus.loadingConversations,
+      clearErrorMessage: true,
+      clearSuccessMessage: true,
+    ));
+    try {
+      final conversations = await chatRepository.getConversations(
+        isArchived: event.showArchived,
+        search: state.searchQuery.isNotEmpty ? state.searchQuery : null,
+      );
+      emit(state.copyWith(
+        status: ChatStatus.loaded,
+        conversations: conversations,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        status: ChatStatus.error,
+        errorMessage: e.toString(),
+      ));
+    }
+  }
+
+  Future<void> _onLoadOlderMessages(
+    LoadOlderMessagesEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    if (state.isLoadingOlderMessages || !state.hasMoreMessages || state.messages.isEmpty) {
+      return;
+    }
+
+    emit(state.copyWith(isLoadingOlderMessages: true));
+    try {
+      final oldestId = state.messages.first.id;
+      final older = await chatRepository.getOlderMessages(
+        event.conversationId,
+        before: oldestId,
+        limit: 30,
+      );
+
+      if (older.isEmpty) {
+        emit(state.copyWith(
+          isLoadingOlderMessages: false,
+          hasMoreMessages: false,
+        ));
+      } else {
+        final combined = List<ChatMessage>.from(older)..addAll(state.messages);
+        emit(state.copyWith(
+          isLoadingOlderMessages: false,
+          hasMoreMessages: older.length >= 30,
+          messages: combined,
+        ));
+      }
+    } catch (e) {
+      emit(state.copyWith(
+        isLoadingOlderMessages: false,
+        errorMessage: 'Failed to load older messages: ${e.toString()}',
+      ));
+    }
   }
 
   Future<void> _onSendMessage(
@@ -103,6 +302,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     emit(state.copyWith(
       status: ChatStatus.sending,
       messages: updatedMessages,
+      clearErrorMessage: true,
+      clearSuccessMessage: true,
     ));
 
     try {
@@ -124,7 +325,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       // Refresh full message list to ensure proper IDs and citations
       final refreshedMessages = await chatRepository.getMessages(assistantMessage.conversationId);
-      final refreshedConversations = await chatRepository.getConversations();
+      final refreshedConversations = await chatRepository.getConversations(
+        isArchived: state.showArchived,
+        search: state.searchQuery.isNotEmpty ? state.searchQuery : null,
+      );
 
       final active = refreshedConversations.firstWhere(
         (c) => c.id == assistantMessage.conversationId,
@@ -165,6 +369,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         conversations: updatedList,
         clearActiveConversation: wasActive,
         messages: wasActive ? [] : state.messages,
+        successMessage: 'Conversation deleted.',
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -180,6 +385,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   ) {
     emit(state.copyWith(scopedDocumentIds: event.documentIds));
   }
+}
+
+extension StringStrip on String {
+  String strip() => trim();
 }
 
 extension StringStrip on String {

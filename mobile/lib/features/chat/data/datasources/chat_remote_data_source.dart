@@ -6,9 +6,26 @@ import '../models/chat_message_model.dart';
 import '../models/conversation_model.dart';
 
 abstract class ChatRemoteDataSource {
-  Future<List<ConversationModel>> getConversations({int skip = 0, int limit = 20});
+  Future<List<ConversationModel>> getConversations({
+    int skip = 0,
+    int limit = 20,
+    String? search,
+    bool isArchived = false,
+  });
   Future<ConversationModel> createConversation({String? title, List<String>? documentIds});
-  Future<List<ChatMessageModel>> getMessages(String conversationId);
+  Future<ConversationModel> updateConversation(
+    String conversationId, {
+    String? title,
+    bool? isArchived,
+  });
+  Future<void> archiveConversation(String conversationId);
+  Future<void> restoreConversation(String conversationId);
+  Future<List<ChatMessageModel>> getMessages(String conversationId, {int limit = 50, String? before});
+  Future<List<ChatMessageModel>> getOlderMessages(
+    String conversationId, {
+    required String before,
+    int limit = 30,
+  });
   Future<ChatMessageModel> sendMessage({
     required String conversationId,
     required String content,
@@ -28,11 +45,25 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   const ChatRemoteDataSourceImpl(this.apiClient);
 
   @override
-  Future<List<ConversationModel>> getConversations({int skip = 0, int limit = 20}) async {
+  Future<List<ConversationModel>> getConversations({
+    int skip = 0,
+    int limit = 20,
+    String? search,
+    bool isArchived = false,
+  }) async {
     try {
+      final queryParams = <String, dynamic>{
+        'skip': skip,
+        'limit': limit,
+        'is_archived': isArchived,
+      };
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+
       final response = await apiClient.client.get(
         '/conversations',
-        queryParameters: {'skip': skip, 'limit': limit},
+        queryParameters: queryParams,
       );
 
       if (response.statusCode == 200) {
@@ -87,9 +118,84 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   }
 
   @override
-  Future<List<ChatMessageModel>> getMessages(String conversationId) async {
+  Future<ConversationModel> updateConversation(
+    String conversationId, {
+    String? title,
+    bool? isArchived,
+  }) async {
     try {
-      final response = await apiClient.client.get('/conversations/$conversationId');
+      final body = <String, dynamic>{};
+      if (title != null) body['title'] = title.trim();
+      if (isArchived != null) body['is_archived'] = isArchived;
+
+      final response = await apiClient.client.patch(
+        '/conversations/$conversationId',
+        data: body,
+      );
+
+      if (response.statusCode == 200) {
+        return ConversationModel.fromJson(response.data as Map<String, dynamic>);
+      } else {
+        throw NetworkExceptions.fromStatusCode(response.statusCode ?? 500, response.data);
+      }
+    } on DioException catch (e) {
+      throw NetworkExceptions.fromDioException(e);
+    } catch (e) {
+      if (e is! Exception) {
+        throw NetworkExceptions.defaultError(e.toString());
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> archiveConversation(String conversationId) async {
+    try {
+      final response = await apiClient.client.post(
+        '/conversations/$conversationId/archive',
+      );
+      if (response.statusCode != 200) {
+        throw NetworkExceptions.fromStatusCode(response.statusCode ?? 500, response.data);
+      }
+    } on DioException catch (e) {
+      throw NetworkExceptions.fromDioException(e);
+    } catch (e) {
+      if (e is! Exception) {
+        throw NetworkExceptions.defaultError(e.toString());
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> restoreConversation(String conversationId) async {
+    try {
+      final response = await apiClient.client.post(
+        '/conversations/$conversationId/restore',
+      );
+      if (response.statusCode != 200) {
+        throw NetworkExceptions.fromStatusCode(response.statusCode ?? 500, response.data);
+      }
+    } on DioException catch (e) {
+      throw NetworkExceptions.fromDioException(e);
+    } catch (e) {
+      if (e is! Exception) {
+        throw NetworkExceptions.defaultError(e.toString());
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<ChatMessageModel>> getMessages(String conversationId, {int limit = 50, String? before}) async {
+    try {
+      final queryParams = <String, dynamic>{'limit': limit};
+      if (before != null) queryParams['before'] = before;
+
+      final response = await apiClient.client.get(
+        '/conversations/$conversationId',
+        queryParameters: queryParams,
+      );
 
       if (response.statusCode == 200) {
         final data = response.data;
@@ -98,6 +204,55 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
               .map((item) => ChatMessageModel.fromJson(item as Map<String, dynamic>))
               .toList();
         }
+        return [];
+      } else {
+        throw NetworkExceptions.fromStatusCode(response.statusCode ?? 500, response.data);
+      }
+    } on DioException catch (e) {
+      throw NetworkExceptions.fromDioException(e);
+    } catch (e) {
+      if (e is! Exception) {
+        throw NetworkExceptions.defaultError(e.toString());
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<ChatMessageModel>> getOlderMessages(
+    String conversationId, {
+    required String before,
+    int limit = 30,
+  }) async {
+    try {
+      final response = await apiClient.client.get(
+        '/conversations/$conversationId/messages',
+        queryParameters: {
+          'limit': limit,
+          'before': before,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data is Map<String, dynamic> && data['items'] is List) {
+          return (data['items'] as List)
+              .map((item) => ChatMessageModel.fromJson(item as Map<String, dynamic>))
+              .toList();
+        }
+        return [];
+      } else {
+        throw NetworkExceptions.fromStatusCode(response.statusCode ?? 500, response.data);
+      }
+    } on DioException catch (e) {
+      throw NetworkExceptions.fromDioException(e);
+    } catch (e) {
+      if (e is! Exception) {
+        throw NetworkExceptions.defaultError(e.toString());
+      }
+      rethrow;
+    }
+  }
         return [];
       } else {
         throw NetworkExceptions.fromStatusCode(response.statusCode ?? 500, response.data);
