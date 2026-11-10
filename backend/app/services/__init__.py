@@ -7,6 +7,8 @@ from app.services.extraction_service import ExtractionService
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
 from app.services.processing_service import ProcessingService
+from app.services.search_service import SearchService
+from app.services.rag_service import RAGRetrievalService
 
 __all__ = [
     "AuthService",
@@ -18,4 +20,6 @@ __all__ = [
     "ChunkingService",
     "EmbeddingService",
     "ProcessingService",
+    "SearchService",
+    "RAGRetrievalService",
 ]

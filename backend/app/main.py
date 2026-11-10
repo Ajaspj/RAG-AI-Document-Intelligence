@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.auth import router as auth_router
 from app.api.v1.documents import router as documents_router
+from app.api.v1.search import router as search_router
 from app.core.config import settings
 from app.db.session import Base, engine
 import app.models  # noqa: F401 - Register models with metadata
@@ -35,6 +36,7 @@ app.add_middleware(
 # API Routers
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(documents_router, prefix=settings.API_V1_STR)
+app.include_router(search_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", tags=["Health"])

@@ -139,10 +139,19 @@ class EmbeddingService:
         cls,
         query: str,
     ) -> List[float]:
-        """Generate a normalized 768-dimensional query embedding using RETRIEVAL_QUERY task type."""
+        """Generate a normalized 768-dimensional query embedding using RETRIEVAL_QUERY task type.
+
+        Validates query emptiness and enforces Gemini token/character ceilings.
+        """
         clean_query = query.strip()
         if not clean_query:
-            raise ValueError("Query string cannot be empty.")
+            raise ValueError("Search query cannot be empty or blank.")
+
+        if len(clean_query) > settings.MAX_QUERY_LENGTH_CHARS:
+            raise ValueError(
+                f"Query length ({len(clean_query)} chars) exceeds maximum allowed "
+                f"limit of {settings.MAX_QUERY_LENGTH_CHARS} characters."
+            )
 
         client = cls.get_client()
         vectors = cls._embed_batch_with_retry(

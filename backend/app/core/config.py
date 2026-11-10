@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     CHUNK_SIZE_TOKENS: int = 1500
     CHUNK_OVERLAP_TOKENS: int = 200
 
+    # Semantic Search & RAG Retrieval Configuration
+    SEMANTIC_SEARCH_DEFAULT_LIMIT: int = 10
+    SEMANTIC_SEARCH_MAX_LIMIT: int = 50
+    SEMANTIC_SEARCH_MIN_SIMILARITY: float = 0.5
+    RAG_CONTEXT_TOKEN_BUDGET: int = 3000
+    RAG_DEFAULT_TOP_K: int = 5
+    RAG_MAX_TOP_K: int = 20
+    MAX_QUERY_LENGTH_CHARS: int = 4000
+
     # Vector Indexing Strategy
     VECTOR_INDEX_TYPE: str = "hnsw"
     VECTOR_DISTANCE_STRATEGY: str = "cosine"

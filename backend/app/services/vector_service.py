@@ -183,15 +183,17 @@ class VectorService:
         query_embedding: List[float],
         top_k: int = 5,
         document_id: Optional[str] = None,
+        document_ids: Optional[List[str]] = None,
         min_similarity: Optional[float] = None,
-    ) -> List[Tuple[DocumentChunk, float, float]]:
+    ) -> List[Tuple[DocumentChunk, str, float, float]]:
         """Perform vector cosine similarity search across document chunks.
 
-        Enforces strict user isolation and optional document scoping.
+        Enforces strict user isolation and optional multi-document scoping.
+        Joins with Document table to fetch original filename in a single query.
         Query embedding is normalized to match normalized stored document vectors.
 
         Returns:
-            List of tuples: (chunk, similarity_score, distance)
+            List of tuples: (chunk, document_original_filename, similarity_score, distance)
         """
         # Validate query embedding dimension
         if len(query_embedding) != settings.EMBEDDING_DIMENSION:
@@ -213,14 +215,20 @@ class VectorService:
         # Distance expression via pgvector cosine distance operator <=>
         distance_expr = DocumentChunk.embedding.cosine_distance(normalized_query).label("distance")
 
-        # Query chunks with embedding, user ownership, and distance calculation
-        query = db.query(DocumentChunk, distance_expr).filter(
-            DocumentChunk.user_id == user_id,
-            DocumentChunk.embedding.isnot(None),
+        # Query chunks joined with Document, scoped by user_id and non-null embedding
+        query = (
+            db.query(DocumentChunk, Document.original_filename, distance_expr)
+            .join(Document, DocumentChunk.document_id == Document.id)
+            .filter(
+                DocumentChunk.user_id == user_id,
+                DocumentChunk.embedding.isnot(None),
+            )
         )
 
-        # Optional single-document constraint
-        if document_id:
+        # Optional multiple or single document constraints
+        if document_ids:
+            query = query.filter(DocumentChunk.document_id.in_(document_ids))
+        elif document_id:
             query = query.filter(DocumentChunk.document_id == document_id)
 
         # Distance filter if minimum similarity is specified (cosine similarity = 1 - distance)
@@ -231,11 +239,11 @@ class VectorService:
         # Order by nearest neighbor (lowest distance) and apply top_k limit
         results = query.order_by(distance_expr.asc()).limit(top_k).all()
 
-        formatted_results: List[Tuple[DocumentChunk, float, float]] = []
-        for chunk, dist in results:
+        formatted_results: List[Tuple[DocumentChunk, str, float, float]] = []
+        for chunk, doc_filename, dist in results:
             distance_val = float(dist)
             similarity = max(0.0, min(1.0, 1.0 - distance_val))
-            formatted_results.append((chunk, similarity, distance_val))
+            formatted_results.append((chunk, doc_filename, similarity, distance_val))
 
         return formatted_results
 
