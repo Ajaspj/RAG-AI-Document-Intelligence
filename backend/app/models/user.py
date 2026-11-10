@@ -24,3 +24,4 @@ class User(Base):
     # Relationships
     documents = relationship("Document", back_populates="owner", cascade="all, delete-orphan")
     chunks = relationship("DocumentChunk", back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
+    conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")

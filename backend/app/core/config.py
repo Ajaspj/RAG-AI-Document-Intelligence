@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     RAG_MAX_TOP_K: int = 20
     MAX_QUERY_LENGTH_CHARS: int = 4000
 
+    # Gemini Chat Generation Configuration
+    GEMINI_CHAT_MODEL: str = "gemini-1.5-flash"
+    GEMINI_TEMPERATURE: float = 0.2
+    GEMINI_MAX_OUTPUT_TOKENS: int = 1024
+    CHAT_HISTORY_TOKEN_BUDGET: int = 2000
+    CHAT_DEFAULT_TOP_K: int = 5
+
     # Vector Indexing Strategy
     VECTOR_INDEX_TYPE: str = "hnsw"
     VECTOR_DISTANCE_STRATEGY: str = "cosine"

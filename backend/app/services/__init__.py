@@ -9,6 +9,8 @@ from app.services.embedding_service import EmbeddingService
 from app.services.processing_service import ProcessingService
 from app.services.search_service import SearchService
 from app.services.rag_service import RAGRetrievalService
+from app.services.chat_generation_service import ChatGenerationService
+from app.services.conversation_service import ConversationService
 
 __all__ = [
     "AuthService",
@@ -22,4 +24,6 @@ __all__ = [
     "ProcessingService",
     "SearchService",
     "RAGRetrievalService",
+    "ChatGenerationService",
+    "ConversationService",
 ]
