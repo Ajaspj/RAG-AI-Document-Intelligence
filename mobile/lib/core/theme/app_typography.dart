@@ -7,7 +7,7 @@ class AppTypography {
   AppTypography._();
 
   static TextTheme get textTheme {
-    return GoogleFonts.plusJakartaSansTextTheme().copyWith(
+    return TextTheme(
       displayLarge: GoogleFonts.plusJakartaSans(
         fontSize: 32,
         fontWeight: FontWeight.w700,
