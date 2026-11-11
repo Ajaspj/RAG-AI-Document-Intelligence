@@ -27,7 +27,9 @@ class NetworkExceptions {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return const NetworkFailure('Connection timed out. Please check your internet connection.');
+        return const NetworkFailure(
+          'Connection timed out. The server may be waking up from sleep. Please try again.',
+        );
 
       case DioExceptionType.badResponse:
         final statusCode = error.response?.statusCode;
@@ -51,7 +53,9 @@ class NetworkExceptions {
         return const ServerFailure('Request was cancelled.');
 
       case DioExceptionType.connectionError:
-        return const NetworkFailure('Cannot reach the server. Please verify the backend service is running.');
+        return const NetworkFailure(
+          'Cannot reach the server. The backend may be spinning up or temporarily unreachable. Please retry in a few moments.',
+        );
 
       case DioExceptionType.badCertificate:
         return const NetworkFailure('Untrusted security certificate.');
