@@ -17,12 +17,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("documind.app")
 
-# Ensure tables are created on startup (compatible with SQLite & PostgreSQL)
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception:
-    # When migrations manage the schema or database is offline during build
-    pass
+# Ensure tables are created on startup in development mode only (compatible with SQLite & PostgreSQL)
+if settings.ENVIRONMENT == "development":
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        # When migrations manage the schema or database is offline during build
+        pass
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

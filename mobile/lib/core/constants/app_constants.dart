@@ -27,9 +27,18 @@ class AppConstants {
   static const String refreshTokenStorageKey = 'documind_refresh_token';
   static const String userStorageKey = 'documind_user_data';
 
-  // Default API Base URL (Android emulator loopback: 10.0.2.2, default host: 127.0.0.1)
-  static const String defaultAndroidBaseUrl = 'http://10.0.2.2:8000';
+  // Environment Variable / Compile-time Define Keys
+  static const String apiBaseUrlEnvironmentKey = 'DOCUMIND_API_BASE_URL';
+
+  // API URL Configurations
+  static const String apiVersionPath = '/api/v1';
+  static const String defaultAndroidEmulatorBaseUrl = 'http://10.0.2.2:8000';
+  static const String defaultPhysicalAndroidBaseUrl = 'http://127.0.0.1:8000';
   static const String defaultIosBaseUrl = 'http://127.0.0.1:8000';
+  static const String defaultDesktopBaseUrl = 'http://127.0.0.1:8000';
+
+  // Legacy compatibility alias
+  static const String defaultAndroidBaseUrl = defaultAndroidEmulatorBaseUrl;
 }
 
 /// Document processing lifecycle states

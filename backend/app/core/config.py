@@ -28,6 +28,17 @@ class Settings(BaseSettings):
     
     # Database (PostgreSQL with psycopg driver as primary)
     DATABASE_URL: str = "postgresql+psycopg://documind:documind_pw@localhost:5432/documind_db"
+    
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: str) -> str:
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return "postgresql+psycopg://" + v[len("postgres://"):]
+            if v.startswith("postgresql://"):
+                return "postgresql+psycopg://" + v[len("postgresql://"):]
+        return v
+    
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30

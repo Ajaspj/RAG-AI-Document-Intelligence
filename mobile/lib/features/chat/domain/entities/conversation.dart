@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+
 import 'chat_message.dart';
 
 class Conversation extends Equatable {
@@ -54,16 +55,15 @@ class Conversation extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        userId,
-        title,
-        documentIds,
-        isArchived,
-        archivedAt,
-        createdAt,
-        updatedAt,
-        messageCount,
-        latestMessage,
-      ];
+    id,
+    userId,
+    title,
+    documentIds,
+    isArchived,
+    archivedAt,
+    createdAt,
+    updatedAt,
+    messageCount,
+    latestMessage,
+  ];
 }
-

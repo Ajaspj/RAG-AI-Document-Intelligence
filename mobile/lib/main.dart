@@ -26,11 +26,11 @@ import 'features/documents/domain/usecases/retry_upload.dart';
 import 'features/documents/domain/usecases/upload_document.dart';
 import 'features/documents/presentation/bloc/documents_bloc.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final storageService = SecureStorageService();
-  final apiClient = ApiClient(storageService: storageService);
+  final apiClient = await ApiClient.create(storageService: storageService);
   final remoteDataSource = AuthRemoteDataSourceImpl(apiClient);
   final authRepository = AuthRepositoryImpl(
     remoteDataSource: remoteDataSource,
@@ -69,6 +69,7 @@ void main() {
 
   runApp(
     DocumentIntelligenceApp(
+      apiClient: apiClient,
       authBloc: authBloc,
       documentsBloc: documentsBloc,
       chatBloc: chatBloc,
@@ -79,6 +80,7 @@ void main() {
 }
 
 class DocumentIntelligenceApp extends StatelessWidget {
+  final ApiClient? apiClient;
   final AuthBloc? authBloc;
   final DocumentsBloc? documentsBloc;
   final ChatBloc? chatBloc;
@@ -87,6 +89,7 @@ class DocumentIntelligenceApp extends StatelessWidget {
 
   const DocumentIntelligenceApp({
     super.key,
+    this.apiClient,
     this.authBloc,
     this.documentsBloc,
     this.chatBloc,
@@ -97,7 +100,8 @@ class DocumentIntelligenceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveStorageService = storageService ?? SecureStorageService();
-    final effectiveApiClient = ApiClient(storageService: effectiveStorageService);
+    final effectiveApiClient =
+        apiClient ?? ApiClient(storageService: effectiveStorageService);
     final effectiveAuthDataSource = AuthRemoteDataSourceImpl(effectiveApiClient);
     final effectiveAuthRepo = AuthRepositoryImpl(
       remoteDataSource: effectiveAuthDataSource,
